@@ -1,0 +1,11 @@
+name: iso-slam-as
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  - python=3.11
+  - snakemake-minimal=9.25
+  - pyyaml
+  - numpy
+  - pandas
+  - matplotlib

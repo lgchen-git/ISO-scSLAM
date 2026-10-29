@@ -1,0 +1,123 @@
+"""Snakemake entrypoint for the ISO-SLAM event-level AS workflow."""
+from pathlib import Path
+
+
+PROJECT = Path(workflow.basedir).resolve().parent
+RUN_ID = config["run_id"]
+SAMPLES = Path(config["samples_tsv"])
+if not SAMPLES.is_absolute():
+    SAMPLES = PROJECT / SAMPLES
+OUTPUT_ROOT = Path(config.get("outputs_root", "outputs"))
+if not OUTPUT_ROOT.is_absolute():
+    OUTPUT_ROOT = PROJECT / OUTPUT_ROOT
+LOG_ROOT = Path(config.get("log_root", "log"))
+if not LOG_ROOT.is_absolute():
+    LOG_ROOT = PROJECT / LOG_ROOT
+TMP_ROOT = Path(config.get("tmp_root", "tmp"))
+if not TMP_ROOT.is_absolute():
+    TMP_ROOT = PROJECT / TMP_ROOT
+RUN_ROOT = OUTPUT_ROOT / RUN_ID
+STAGE1 = RUN_ROOT / "01_input_audit"
+STAGE2 = RUN_ROOT / "02_as_tables"
+STAGE3 = RUN_ROOT / "03_as_figures"
+STAGE4 = RUN_ROOT / "04_report"
+STAGE5 = RUN_ROOT / "05_customer_delivery"
+SCRATCH = TMP_ROOT / RUN_ID / "as_core"
+PYTHON = config.get("python_bin", "python3")
+SOURCE_ROOT = config["source_rebuild_root"]
+EVENT_ROOT = config["event_ioe_dir"]
+CONFIG_PATH = Path(workflow.configfiles[0]).resolve()
+
+
+rule all:
+    input:
+        str(STAGE5 / "report/final_ISO_SLAM_AS_report.html"),
+        str(RUN_ROOT / "05_customer_delivery.complete")
+
+
+rule input_audit:
+    output:
+        audit=str(STAGE1 / "input_audit.tsv"),
+        marker=touch(str(STAGE1 / "stage_complete.txt"))
+    log:
+        str(LOG_ROOT / RUN_ID / "01_input_audit.log")
+    shell:
+        """
+        mkdir -p $(dirname {log})
+        {PYTHON} pipeline/scripts/stage_input_audit.py \
+          --samples {SAMPLES} \
+          --source-root {SOURCE_ROOT} \
+          --event-root {EVENT_ROOT} \
+          --output {output.audit} > {log} 2>&1
+        """
+
+
+rule as_tables:
+    input:
+        str(STAGE1 / "stage_complete.txt")
+    output:
+        event_psi=str(STAGE2 / "tables/new_rna/event_psi.tsv"),
+        marker=touch(str(STAGE2 / "stage_complete.txt"))
+    log:
+        str(LOG_ROOT / RUN_ID / "02_as_tables.log")
+    shell:
+        """
+        {PYTHON} pipeline/scripts/stage_as_tables.py \
+          --config {CONFIG_PATH} \
+          --samples {SAMPLES} \
+          --output {STAGE2} \
+          --scratch {SCRATCH} \
+          --log {log}
+        """
+
+
+rule as_figures:
+    input:
+        str(STAGE2 / "stage_complete.txt")
+    output:
+        figure=str(STAGE3 / "figures/new_rna/new_rna_event_coverage.png"),
+        marker=touch(str(STAGE3 / "stage_complete.txt"))
+    log:
+        str(LOG_ROOT / RUN_ID / "03_as_figures.log")
+    shell:
+        """
+        mkdir -p $(dirname {log})
+        {PYTHON} pipeline/scripts/stage_as_figures.py \
+          --scratch {SCRATCH} --output {STAGE3} > {log} 2>&1
+        """
+
+
+rule report:
+    input:
+        str(STAGE3 / "stage_complete.txt")
+    output:
+        report=str(STAGE4 / "final_ISO_SLAM_AS_report.html"),
+        marker=touch(str(STAGE4 / "stage_complete.txt"))
+    log:
+        str(LOG_ROOT / RUN_ID / "04_report.log")
+    shell:
+        """
+        mkdir -p $(dirname {log})
+        {PYTHON} pipeline/scripts/stage_as_report.py \
+          --scratch {SCRATCH} --output {STAGE4} > {log} 2>&1
+        """
+
+
+rule customer_delivery:
+    input:
+        tables=str(STAGE2 / "stage_complete.txt"),
+        figures=str(STAGE3 / "stage_complete.txt"),
+        report=str(STAGE4 / "stage_complete.txt")
+    output:
+        report=str(STAGE5 / "report/final_ISO_SLAM_AS_report.html"),
+        readme=str(STAGE5 / "README.md"),
+        marker=touch(str(RUN_ROOT / "05_customer_delivery.complete"))
+    log:
+        str(LOG_ROOT / RUN_ID / "05_customer_delivery.log")
+    shell:
+        """
+        mkdir -p $(dirname {log})
+        {PYTHON} pipeline/scripts/stage_customer_delivery.py \
+          --tables {STAGE2} --figures {STAGE3} --report {STAGE4} \
+          --output {STAGE5} > {log} 2>&1
+        """

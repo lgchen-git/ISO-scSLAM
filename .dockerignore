@@ -1,0 +1,39 @@
+# VCS and local agent state
+.git/
+.agents/
+.codex
+.codex/
+.codex-config.toml
+
+# Runtime outputs and scratch space
+logs/
+output/
+results/
+tmp/
+work/
+
+# Python and test caches
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+
+# Local environments and package caches
+.conda/
+.mamba/
+.micromamba/
+.venv/
+venv/
+conda-meta/
+
+# Editor and OS files
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+
+# Local Docker build inputs from older manual workflows
+Mambaforge-*.sh
+Miniforge3-*.sh
+Shanghai
